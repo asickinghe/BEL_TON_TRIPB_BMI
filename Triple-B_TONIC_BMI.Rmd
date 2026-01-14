@@ -285,7 +285,7 @@ View(sigAdj)
 create odds ratio for BMI x response labels
 ```{r}
 # create 4x4 table
-tab <- matrix(c(14, 51, 10, 71),
+tab <- matrix(c(12, 52, 11, 70),
               nrow = 2,
               byrow = TRUE,
               dimnames = list(
@@ -298,13 +298,28 @@ oddsratio(tab)
 ```
 
 ##Survival analyses
+Mutate os and pfs from days to months
+```{r}
+tonicdf_filtered <- tonicdf_filtered %>%
+  mutate (osmonths = os_days/30.44,
+        pfsmonths = pfs_days/30.44)
+```
+
 assocation between survival and BMI
 ```{r}
+#PFS
 #BMI grouped
-coxph(Surv(os_days, osstat) ~ BMI_grouped, data = tonicdf_filtered)
+coxph(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_grouped, data = tonicdf_filtered)
 
 #BMI continuous
-coxph(Surv(os_days, osstat) ~ BMI, data = tonicdf_filtered)
+coxph(Surv(pfsmonths, pfs_osstat_ok) ~ BMI, data = tonicdf_filtered)
+
+#OS
+#BMI grouped
+coxph(Surv(osmonths, osstat) ~ BMI_grouped, data = tonicdf_filtered)
+
+#BMI continuous
+coxph(Surv(osmonths, osstat) ~ BMI, data = tonicdf_filtered)
 ```
 
 assocation between TILs and survival in low vs high BMI
@@ -339,12 +354,6 @@ coxph(Surv(os_days, osstat) ~ sTIL,
       data = (tonicdf_filtered) %>% filter (BMI_grouped == "high BMI"))
 ```
 
-Mutate os and pfs from days to months
-```{r}
-tonicdf_filtered <- tonicdf_filtered %>%
-  mutate (osmonths = os_days/30.44,
-        pfsmonths = pfs_days/30.44)
-```
 
 KM for OS per BMI group
 ```{r}
@@ -360,7 +369,22 @@ survfit2(Surv(osmonths, osstat) ~ BMI_grouped, data = tonicdf_filtered) %>%
   scale_x_continuous(breaks = seq(0, 30, 6))
 ```
 
+PFS
+```{r}
+survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_grouped, data = tonicdf_filtered) %>%
+  ggsurvfit () +
+  labs ( x = "months",
+         y = "progression-free survival probability",
+         title = "kaplan-meier for pfs per BMI group") +
+  add_risktable() +
+  add_pvalue() + 
+  theme_minimal () +
+  coord_cartesian(xlim = c(0, 30)) +        # show only 0–30 months
+  scale_x_continuous(breaks = seq(0, 30, 6))
+```
+
 KM for BMI_TIL groups
+OS
 ```{r}
 tonicdf_filtered <- tonicdf_filtered%>%
   mutate (BMI_TIL_groups = case_when (
@@ -375,6 +399,20 @@ survfit2(Surv(osmonths, osstat) ~ BMI_TIL_groups, data = tonicdf_filtered) %>%
   labs ( x = "months",
          y = "overall survival probability",
          title = "kaplan-meier for os per BMI-TIL group") +
+  add_risktable() +
+  add_pvalue() + 
+  theme_minimal () +
+  coord_cartesian(xlim = c(0, 30)) +        # show only 0–30 months
+  scale_x_continuous(breaks = seq(0, 30, 6))
+```
+
+PFS
+```{r}
+survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_TIL_groups, data = tonicdf_filtered) %>%
+  ggsurvfit () +
+  labs ( x = "months",
+         y = "progression-free survival probability",
+         title = "kaplan-meier for pfs per BMI-TIL group") +
   add_risktable() +
   add_pvalue() + 
   theme_minimal () +
@@ -754,6 +792,7 @@ filter (arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
   bold_labels()
 ```
 
+## Response labels
 influence of BMI on response labels
 ```{r}
 tripledf_filtered_atezo %>% 
@@ -767,9 +806,24 @@ tripledf_filtered_atezo %>%
 modify_header(label ~ "**BOR**") %>%
 bold_labels()
 
-kruskal.test(response_labels ~ bmi.baseline, data = tripledf_filtered_atezo)
+chisq.test(tripledf_filtered_atezo$BMI_grouped, tripledf_filtered_atezo$response_labels)
 ```
 
+
+create odds ratio for BMI x response labels
+```{r}
+# create 4x4 table
+tab <- matrix(c(26, 20, 42, 32),
+              nrow = 2,
+              byrow = TRUE,
+              dimnames = list(
+                Exposure = c("low BMI", "high BMI"),
+                Disease = c("CR+PR", "PD")
+              ))
+              
+# odds ratio
+oddsratio(tab)
+```
 
 ##TILs
 histograms of TILs per BMI group
@@ -1441,3 +1495,93 @@ summary(model)
 exp(coef(model))                     # Odds ratios
 exp(confint(model))                  # CI
 ```
+
+#CHAPTER 4: TONIC/TRIPLE-B COMBINED
+I want to make a new df with bmi and TILs from TONIC and Triple-B combined
+first make sure the variables are numeric
+```{r}
+tonicdf_filtered <- tonicdf_filtered %>%
+  mutate (patnr = as.character (patnr),
+          BMI = as.numeric (BMI),
+          sTIL = as.numeric (sTIL))
+
+tripledf_filtered <- tripledf_filtered %>%
+  mutate (patnr = as.character (patnr),
+          bmi.baseline = as.numeric (bmi.baseline),
+          sTIL = as.numeric (sTIL))
+```
+
+make new df
+```{r}
+combinedf <- bind_rows(
+  tonicdf_filtered %>% select (patnr, bmi = BMI, sTIL),
+  tripledf_filtered %>% select (patnr, bmi = bmi.baseline, sTIL))
+View(combinedf)
+```
+
+Now analyse relation between TILs and BMI
+```{r}
+cor.test(combinedf$bmi, combinedf$sTIL, method = "spearman")
+
+ggplot(data = combinedf %>% filter (patnr != "283", sTIL != "NA"), mapping = aes (x = bmi, y = sTIL)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth (se = FALSE) +
+  labs(
+    x = "BMI at baseline",
+    y = "TIL-score",
+    title = "TONIC & Triple-B combined"
+  ) 
+```
+
+Make bmi groups to analyse odds ratio and medians per group
+```{r}
+combinedf <- combinedf %>%
+  mutate (BMI_grouped = case_when(
+                        bmi >= 18.5 & bmi < 25 ~ "low BMI",
+                        bmi >= 25 ~ "high BMI",
+                        TRUE ~ as.character(NA)))
+glimpse(combinedf$BMI_grouped)
+
+combinedf <- combinedf %>%
+  mutate (TILs_median = case_when(
+    sTIL < 5 ~ "<5%",
+    sTIL >= 5 ~ ">=5%",
+    TRUE ~ as.character(NA)))
+glimpse(combinedf$TILs_median)
+```
+
+```{r}
+combinedf %>%
+  group_by (BMI_grouped) %>%
+  filter (sTIL != "NA") %>%
+  summarize (medianTIL = median (sTIL),
+             minTIL = min (sTIL),
+             maxTIL = max (sTIL),
+             count = n ())
+     
+wilcox.test (sTIL ~ BMI_grouped, data = combinedf, correct = FALSE)
+
+ggplot (data = combinedf, mapping = aes (x = sTIL)) +
+  geom_histogram (binwidth = 5, color = "white", 
+                  fill = "lightblue") +
+  stat_bin(aes(y = ..count..), geom = "line", binwidth = 5, color = "red", size = 1) +
+  facet_wrap(~BMI_grouped) +
+  labs(
+    x = "TIL-score",
+    y = "n",
+    title = "distribution of TILs per BMI group"
+  )
+```
+
+```{r}
+#analyse TILs grouped with BMI grouped
+combinedf %>%
+  filter(!is.na(TILs_median)) %>%
+  tbl_summary (
+    by = BMI_grouped,
+    include = TILs_median,
+    type = list (TILs_median ~ "categorical"),
+    statistic = (all_categorical() ~ "{n} ({p}%)")
+  ) %>%
+  add_p()
+```  
