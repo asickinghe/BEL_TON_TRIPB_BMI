@@ -1,0 +1,117 @@
+---
+title: "Practicing with Triple-B"
+output: html_document
+date: "2025-10-01"
+---
+
+```{r}
+library(tidyverse)
+library(gtsummary)
+```
+
+# open clinical metadata file triple-B
+
+```{r}
+df <- read.csv("TripleB-Clinical_data_20250416_final copy.csv")
+View(df)
+```
+
+# mutate PFS and OS to months
+```{r}
+df <- df %>%
+  mutate(pfs_ok_months = pfs_ok/30.4375,
+         os_months = os/30.4375)
+View(df)
+```
+
+# median PFS and OS in months per treatment arm
+```{r}
+mediansurvival_perarm <- df %>%
+  group_by(arm) %>%
+  summarise(count = n(),
+            medianpfs = median(pfs_ok_months, na.rm = TRUE),
+            medianos = median(os_months, na.rm = TRUE))
+View(mediansurvival_perarm)
+```
+
+# median PFS in atezo vs chemo arms
+# group atezo and chemo arms
+```{r}
+df <- df %>%
+  mutate(arm_grouped = case_when(
+    arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab", 
+               "Paclitaxel, Atezolizumab") ~ "Atezo + chemo",
+    arm %in% c("Carboplatin, Cyclophosphamide", 
+               "Paclitaxel") ~ "Chemo",
+    TRUE ~ as.character(arm)  
+  ))
+View(df)
+```
+
+# summarize median pfs per grouped arm
+```{r}
+mediansurvival_atezovschemo <- df %>%
+  group_by (arm_grouped) %>%
+  summarise (medianpfs = median(pfs_ok_months),
+             medianos = median(os_months),
+             count = n())
+View(mediansurvival_atezovschemo)
+```
+
+# how many patients received per arm
+```{r}
+patientsperarm <- df %>%
+  group_by(arm) %>%
+  summarize (count = n())
+View(patientsperarm)
+```
+
+# arrange pfs from longest to shortest and move pfs to the 3rd column
+```{r}
+df <- df %>%
+  arrange(desc(pfs_ok)) %>%
+  select(1:2,pfs_ok, everything())
+View(df)
+```
+
+# select patient ID and pfs
+```{r}
+patientID_pfs <- df %>%
+  select(patnr, pfs_ok) %>%
+  arrange (patnr)
+glimpse(patientID_pfs)
+```
+
+# make barplot of number of patients per treatment arm
+```{r}
+  ggplot (data = df, aes (x = arm)) +
+  geom_bar()
+```
+
+# load file
+```{r}
+df <- read.csv("TripleB-Clinical_data_20250416_final copy.csv")
+View(df)
+```
+
+# try baseline table
+```{r}
+df %>%
+  tbl_summary(
+    by = arm,
+    type = list (age.rand ~ "continuous", hist ~ "categorical", who ~ "categorical", germline_tot ~ "categorical"),
+    statistic = list(all_continuous()~ "{median} ({min}, {max})",
+                     all_categorical()~ "{n} ({p}%)"),
+    include = c(age.rand, hist, who, germline_tot)) %>%
+  add_p() %>%
+  modify_header(label~"**baseline**") %>%
+  bold_labels()
+```
+# explore subtypes
+```{r}
+histology <- df %>%
+  group_by(hist) %>%
+  summarize (count = n ()) %>%
+  mutate (percent = count/sum(count) *100)
+View (histology)
+```

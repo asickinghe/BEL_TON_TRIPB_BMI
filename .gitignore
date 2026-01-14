@@ -2,8 +2,11 @@
 .Rhistory
 .RData
 .Ruserdata
+<<<<<<< HEAD
 .xlsx
 
 *.csv
 *.xlsx
 *.pptx
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20

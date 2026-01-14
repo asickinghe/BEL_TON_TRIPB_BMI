@@ -29,8 +29,15 @@ library(ggsurvfit)
 ```
 
 #CHAPTER 1: TONIC
+<<<<<<< HEAD
 ```{r}
 tonicdf <- read.csv ("TONIC12_clinicaldata_BMIproject_20251205.csv")
+=======
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
+setwd("/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
+tonicdf <- read.csv ("TONIC12_clinicaldata_BMIproject_20251020.csv")
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ```
 
 ## Mutate variables
@@ -285,7 +292,11 @@ View(sigAdj)
 create odds ratio for BMI x response labels
 ```{r}
 # create 4x4 table
+<<<<<<< HEAD
 tab <- matrix(c(12, 52, 11, 70),
+=======
+tab <- matrix(c(14, 51, 10, 71),
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
               nrow = 2,
               byrow = TRUE,
               dimnames = list(
@@ -298,6 +309,18 @@ oddsratio(tab)
 ```
 
 ##Survival analyses
+<<<<<<< HEAD
+=======
+assocation between survival and BMI
+```{r}
+wilcox.test (os_days ~ BMI_grouped, correct = FALSE, data = tonicdf_filtered)
+
+#analyse BMI continuous
+cor.test(tonicdf_filtered$os_days, tonicdf_filtered$BMI, 
+         method = "spearman", exact = FALSE)
+```
+
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 Mutate os and pfs from days to months
 ```{r}
 tonicdf_filtered <- tonicdf_filtered %>%
@@ -305,6 +328,7 @@ tonicdf_filtered <- tonicdf_filtered %>%
         pfsmonths = pfs_days/30.44)
 ```
 
+<<<<<<< HEAD
 assocation between survival and BMI
 ```{r}
 #PFS
@@ -355,6 +379,8 @@ coxph(Surv(os_days, osstat) ~ sTIL,
 ```
 
 
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 KM for OS per BMI group
 ```{r}
 survfit2(Surv(osmonths, osstat) ~ BMI_grouped, data = tonicdf_filtered) %>%
@@ -369,6 +395,7 @@ survfit2(Surv(osmonths, osstat) ~ BMI_grouped, data = tonicdf_filtered) %>%
   scale_x_continuous(breaks = seq(0, 30, 6))
 ```
 
+<<<<<<< HEAD
 PFS
 ```{r}
 survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_grouped, data = tonicdf_filtered) %>%
@@ -385,6 +412,9 @@ survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_grouped, data = tonicdf_filtered) 
 
 KM for BMI_TIL groups
 OS
+=======
+KM for BMI_TIL groups
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ```{r}
 tonicdf_filtered <- tonicdf_filtered%>%
   mutate (BMI_TIL_groups = case_when (
@@ -406,6 +436,7 @@ survfit2(Surv(osmonths, osstat) ~ BMI_TIL_groups, data = tonicdf_filtered) %>%
   scale_x_continuous(breaks = seq(0, 30, 6))
 ```
 
+<<<<<<< HEAD
 PFS
 ```{r}
 survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_TIL_groups, data = tonicdf_filtered) %>%
@@ -420,6 +451,8 @@ survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_TIL_groups, data = tonicdf_filtere
   scale_x_continuous(breaks = seq(0, 30, 6))
 ```
 
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ## Multivariable regression 
  #mutate variables like Voorwerk paper
  
@@ -459,7 +492,11 @@ tonicdf_filtered <- tonicdf_filtered %>%
 
 ```{r}
 livermets <- tonicdf_filtered %>%
+<<<<<<< HEAD
   filter (location.liver == "1") %>%
+=======
+  filter (location.liver ›== "1") %>%
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
   group_by (arm) %>%
   summarize (count = n())
 print(livermets)
@@ -519,7 +556,13 @@ tonicdf_filtered_no <- tonicdf_filtered %>%
 
 
 #CHAPTER 2: TRIPLE-B
+<<<<<<< HEAD
 ```{r}
+=======
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Data files/Final data files")
+setwd("/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Data files/Final data files")
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 tripledf <- read.csv ("Triple-B_Clinical_data_20251023_final.csv")
 ```
 
@@ -792,7 +835,10 @@ filter (arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
   bold_labels()
 ```
 
+<<<<<<< HEAD
 ## Response labels
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 influence of BMI on response labels
 ```{r}
 tripledf_filtered_atezo %>% 
@@ -806,6 +852,7 @@ tripledf_filtered_atezo %>%
 modify_header(label ~ "**BOR**") %>%
 bold_labels()
 
+<<<<<<< HEAD
 chisq.test(tripledf_filtered_atezo$BMI_grouped, tripledf_filtered_atezo$response_labels)
 ```
 
@@ -825,6 +872,12 @@ tab <- matrix(c(26, 20, 42, 32),
 oddsratio(tab)
 ```
 
+=======
+kruskal.test(response_labels ~ bmi.baseline, data = tripledf_filtered_atezo)
+```
+
+
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ##TILs
 histograms of TILs per BMI group
 ```{r}
@@ -926,7 +979,11 @@ assocation between survival and BMI
 tripledf_filtered %>% 
   filter(arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
              "Paclitaxel, Atezolizumab")) %>% #1st line atezo only
+<<<<<<< HEAD
 coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ BMI_grouped, data = .)
+=======
+ wilcox.test (pfs_ok ~ BMI_grouped, correct = FALSE, data = .)
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 
 #analyse BMI continuous for pfs
 tripledf_filtered %>% 
@@ -938,7 +995,11 @@ coxph (Surv(pfs_ok, pfsstat_osstat_ok) ~ bmi.baseline, data = .)
 tripledf_filtered %>% 
   filter(arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
              "Paclitaxel, Atezolizumab")) %>% #1st line atezo only
+<<<<<<< HEAD
 coxph(Surv(os, osstat) ~ BMI_grouped, data = .)
+=======
+wilcox.test (os ~ BMI_grouped, correct = FALSE, data = .)
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 
 #analyse BMI continuous
 tripledf_filtered %>% 
@@ -948,6 +1009,7 @@ coxph (Surv(os, osstat) ~ bmi.baseline, data = .)
 ```
 
 
+<<<<<<< HEAD
 association between TILs and survival in low and high BMI
 only assess this in 1st line atezo patients as TILs are predictor for IO response,
 but not for chemo response
@@ -999,6 +1061,8 @@ coxph(Surv(os, osstat) ~ sTIL,
              "Paclitaxel, Atezolizumab" & BMI_grouped == "high BMI"))
 ```
 
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 Kaplan-Meijer for BMI groups
 mutate os and pfs from days to months
 ```{r}
@@ -1131,7 +1195,13 @@ with(wilcox.test(PD_1stline, PD_2ndline, paired = TRUE))
 ```
 
 #CHAPTER 3: BELLINI
+<<<<<<< HEAD
 ```{r}
+=======
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
+setwd("/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 beldf <- read.csv ("BELLINI_metadata_20251204_AS.csv")
 View(beldf)
 ```
@@ -1171,6 +1241,7 @@ beldf <- beldf %>%
           TRUE ~ as.character(NA)))
 ```
 
+<<<<<<< HEAD
 TILs<50 or >50 
 ```{r}
 beldf <- beldf %>%
@@ -1180,6 +1251,8 @@ beldf <- beldf %>%
     TRUE ~ as.character (NA)))
 ```
 
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 regroup menopausal status to clean data
 ```{r}
 beldf <- beldf %>%
@@ -1215,6 +1288,12 @@ beldf <- beldf %>%
 ```{r}
 beldf <- beldf %>%
   mutate (TIL_mean = as.numeric(TIL_mean))
+<<<<<<< HEAD
+=======
+
+beldf_filtered <- beldf %>% 
+  filter (BMI_grouped != "underweight") 
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ```
 
 regroup pCR to clean data
@@ -1222,12 +1301,17 @@ everything that is not pCR = non-pCR
 in paper by Nederlof there was distinguished between clinical response yes/no for cohort 1B and 2B. 
 pCR was not reported for cohort 1B and 2B
 ```{r}
+<<<<<<< HEAD
 beldf <- beldf%>%
+=======
+beldf_filtered <- beldf_filtered %>%
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
   mutate (pCR_response = case_when(
     pCR_response == "pCR" ~ "pCR",
     pCR_response == "near-pCR" | pCR_response == "non-pCR" 
     | pCR_response == "nearpCR" | pCR_response == "NR" ~ "non-pCR",
     TRUE ~ as.character(NA)))
+<<<<<<< HEAD
 glimpse(beldf$pCR_response)
 ```
 for cohort 3B distinguish between pCR, MPR and NR
@@ -1237,13 +1321,19 @@ beldf <- beldf %>%
   pCR_response == "pCR" ~ "pCR",
   !pCR_response %in% "pCR" & MPR == "MPR" ~ "MPR",
   !pCR_response %in% "pCR" & MPR == "NR" ~ "NR"))
+=======
+glimpse(beldf_filtered$pCR_response)
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ```
 
 ##Baseline table
 ```{r}
+<<<<<<< HEAD
 beldf_filtered <- beldf %>% 
   filter (BMI_grouped != "underweight") 
 
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 beldf_filtered %>%
   tbl_summary(
     by = BMI_grouped,
@@ -1251,14 +1341,22 @@ beldf_filtered %>%
                  meno ~ "categorical", tumor_stage ~ "categorical", 
                  stage ~ "categorical", Lymphnode_status_baseline ~ "categorical", 
                  Grade_of_tumor ~ "categorical",
+<<<<<<< HEAD
                  TILs30 ~ "categorical", TILs50 ~ "categorical",
                  TIL_mean ~ "continuous",
+=======
+                 TILs30 ~ "categorical", TIL_mean ~ "continuous",
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
                  Neoadjuvant_Chemotherapy ~ "categorical", 
                  pCR_response ~ "categorical"),
     statistic = list (all_continuous() ~ "{median} ({min}, {max})",
                      all_categorical() ~ "{n} ({p}%)"),
     include = c(age_grouped, Age_at_diagnosis, meno, tumor_stage, stage, 
+<<<<<<< HEAD
                 Lymphnode_status_baseline, Grade_of_tumor, TILs30, TILs50, TIL_mean, 
+=======
+                Lymphnode_status_baseline, Grade_of_tumor, TILs30, TIL_mean, 
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
                 Neoadjuvant_Chemotherapy, pCR_response)) %>%
   modify_header(label~"**BELLINI baseline**") %>%
   add_p () %>%
@@ -1283,7 +1381,12 @@ ggplot (data = beldf_filtered, mapping = aes(x = BMI_grouped, y = TIL_mean)) +
     y = "TIL-scores",
     title = "violin plot of TIL-scores per BMI group"
     )
+<<<<<<< HEAD
 
+=======
+```
+```{r}
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 #TILs continuous x BMI grouped
 wilcox.test(TIL_mean ~ BMI_grouped, correct = FALSE, data = beldf_filtered)
 
@@ -1294,7 +1397,12 @@ cor.test(beldf_filtered$TIL_mean, beldf_filtered$BMI_at_diagnosis, method = "spe
 chisq.test(x = beldf_filtered$TILs30, y = beldf_filtered$BMI_grouped)
 ```
 
+<<<<<<< HEAD
 ##Clinical benefit
+=======
+  stat_bin(aes(y = ..count..), geom = "line", binwidth = 5, color = "red", size = 1) +
+
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ```{r}
 #look at the association between CLinical Benefit rates and BMI for cohort 1B and 2B 
 beldf_filtered <- beldf_filtered %>%
@@ -1339,7 +1447,11 @@ beldf_filtered %>%
 ```{r}
 #BMI grouped x pCR
 beldf_filtered %>%
+<<<<<<< HEAD
   filter (Cohort == "3B") %>%
+=======
+  filter (Cohort != "3B") %>%
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
   tbl_summary (
     by = pCR_response,
     include = BMI_grouped,
@@ -1360,6 +1472,7 @@ tab <- matrix(c(7,10,3,11), #count of cases per exposure and disease, top left t
               
 # odds ratio
 oddsratio(tab)
+<<<<<<< HEAD
 
 #BMI grouped x MPR in cohort 3B
 beldf_filtered %>%
@@ -1412,12 +1525,18 @@ ggplot(beldf_filtered_3B, aes (x = BELLINI_ID, y = Tumor_change,
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 #correlation
 wilcox.test(Tumor_change ~ BMI_grouped, correct = FALSE, data = beldf_filtered_3B)
+=======
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
 ```
 
 ##Logistic regression for pCR
 Univariable log regression for pCR 
 ```{r}
+<<<<<<< HEAD
 beldf_filtered_3B %>%
+=======
+beldf_filtered %>%
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
   tbl_summary(
     by = pCR_response,
     type = list (age_grouped ~ "categorical", Age_at_diagnosis ~ "continuous",
@@ -1425,13 +1544,23 @@ beldf_filtered_3B %>%
                  meno ~ "categorical", tumor_stage ~ "categorical", 
                  stage ~ "categorical", Lymphnode_status_baseline ~ "categorical", 
                  Grade_of_tumor ~ "categorical",
+<<<<<<< HEAD
                  TILs30 ~ "categorical", TILs50 ~ "categorical", 
                  TIL_mean ~ "continuous"),
+=======
+                 TILs30 ~ "categorical", TIL_mean ~ "continuous",
+                 Neoadjuvant_Chemotherapy ~ "categorical"),
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
     statistic = list (all_continuous() ~ "{median} ({min}, {max})",
                      all_categorical() ~ "{n} ({p}%)"),
     include = c(age_grouped, Age_at_diagnosis, BMI_at_diagnosis, BMI_grouped,
                 meno, tumor_stage, stage, Lymphnode_status_baseline, 
+<<<<<<< HEAD
                 Grade_of_tumor, TILs30, TILs50, TIL_mean)) %>%
+=======
+                Grade_of_tumor, TILs30, TIL_mean, 
+                Neoadjuvant_Chemotherapy)) %>%
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
   modify_header(label~"**Univariate logistic regression for pCR**") %>%
   add_p () %>%
   bold_labels()
@@ -1494,6 +1623,7 @@ summary(model)
 
 exp(coef(model))                     # Odds ratios
 exp(confint(model))                  # CI
+<<<<<<< HEAD
 ```
 
 #CHAPTER 4: TONIC/TRIPLE-B COMBINED
@@ -1585,3 +1715,6 @@ combinedf %>%
   ) %>%
   add_p()
 ```  
+=======
+```
+>>>>>>> 23be80055b0c0fe0374172376de91664cc93ad20
