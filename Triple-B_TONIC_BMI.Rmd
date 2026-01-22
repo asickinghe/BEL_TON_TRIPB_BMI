@@ -26,13 +26,14 @@ library (xtable)
 library(tidyr)
 library(epitools)
 library(ggsurvfit)
+library(moderndive)
 ```
 
 #CHAPTER 1: TONIC
-```{r setup, include=FALSE}
-knitr::opts_knit$set(root.dir = "/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
+```{r}
 setwd("/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
-tonicdf <- read.csv ("TONIC12_clinicaldata_BMIproject_20251020.csv")
+tonicdf <- read.csv ("TONIC12_clinicaldata_BMIproject_20260122.csv")
+View(tonicdf)
 ```
 
 ## Mutate variables
@@ -137,6 +138,32 @@ tonicdf <- tonicdf %>%
     sTIL <5 ~ "TILs <5%",
     TRUE ~ as.character (NA)
   ))
+```
+
+tidy biopsy site categories
+```{r}
+glimpse(tonicdf$baseline_biopsy_site)
+
+tonicdf <- tonicdf %>%
+  mutate (baseline_biopsy_site_tidy = case_when (
+   baseline_biopsy_site %in% c("Breast", "Mamma R", "Mamma", "Mamma L") ~ "Breast",
+   baseline_biopsy_site %in% c("Skin", "Skin / thoracall wall") ~ "Skin",
+   baseline_biopsy_site %in% c("Liver", "liver") ~ "Liver",
+   baseline_biopsy_site %in% c("Lymphnode", "Lymph node parasternaal R",
+                               "LN supraclavicular L", "LN neck R", "LN axilla rechts",
+                               "Lymph node axilla L", "Lymph node, axilla L", 
+                               "Lymph node ") ~ "Lymphnode",
+   baseline_biopsy_site %in% c("Soft tissue", "Muscle", "Subcutaneous tissue", 
+                               "Parasternale massa", 
+                               "Neck  (no LN)", "soft tissue surrounding costa",
+                               "Mass supraclavicular", "Glandula submandibularis",
+                               "Chest wall", "Thoracal wall", "Thoraxwall") ~ "Soft tissue",
+   baseline_biopsy_site %in% c("Lung", "Lung, r", "Pleural") ~ "Lung",
+   baseline_biopsy_site %in% c("Peritoneum", "Stomach") ~ "Other visceral",
+   TRUE ~ as.character(NA)))
+
+tonicdf <- tonicdf %>%
+  relocate(baseline_biopsy_site_tidy, .after = baseline_biopsy_site)
 ```
 
 ## Baseline table
@@ -244,6 +271,25 @@ ggplot (data = tonicdf_filtered, mapping = aes (x = sTIL)) +
   facet_wrap(~BMI_grouped) 
 ```
 
+
+biopsy location and TILs
+```{r}
+tonicdf_filtered %>%
+  group_by (baseline_biopsy_site_tidy) %>%
+  filter (sTIL != "NA") %>%
+  summarize (number = n(),
+             median_TIL_score = median (sTIL),
+             minTIL_score = min(sTIL),
+             maxTIL_score = max(sTIL))
+
+#distribution of TILs per biopsy site is sig different
+kruskal.test(sTIL ~ baseline_biopsy_site_tidy, data = tonicdf_filtered)
+
+#post-hoc testing with correction renders only LN vs Liver sig
+tonicdf_filtered %>%
+  dunn_test(sTIL ~ baseline_biopsy_site_tidy, p.adjust.method = "bonferroni")
+```
+
 ##Response labels
 ```{r}
 tonicdf_filtered %>%
@@ -287,7 +333,7 @@ View(sigAdj)
 create odds ratio for BMI x response labels
 ```{r}
 # create 4x4 table
-tab <- matrix(c(14, 51, 10, 71),
+tab <- matrix(c(12, 52, 11, 70),
               nrow = 2,
               byrow = TRUE,
               dimnames = list(
@@ -299,22 +345,88 @@ tab <- matrix(c(14, 51, 10, 71),
 oddsratio(tab)
 ```
 
-##Survival analyses
-assocation between survival and BMI
+interaction between TILs and BMI and influence on response labels
 ```{r}
-wilcox.test (os_days ~ BMI_grouped, correct = FALSE, data = tonicdf_filtered)
+tonicdf_filtered <- tonicdf_filtered %>%
+  mutate (response_labels_bin = case_when(
+    response_labels == "CR + PR" ~ 1,
+    response_labels == "PD" ~ 0,
+    TRUE ~ as.numeric(response_labels)))
 
-#analyse BMI continuous
-cor.test(tonicdf_filtered$os_days, tonicdf_filtered$BMI, 
-         method = "spearman", exact = FALSE)
+model <- glm(response_labels_bin ~ TILs_median * BMI, data = tonicdf_filtered, 
+             family = binomial)
+tbl_regression(model)
 ```
 
+##Survival analyses
 Mutate os and pfs from days to months
 ```{r}
 tonicdf_filtered <- tonicdf_filtered %>%
   mutate (osmonths = os_days/30.44,
         pfsmonths = pfs_days/30.44)
 ```
+
+assocation between survival and BMI
+```{r}
+#PFS
+#BMI grouped
+coxph(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_grouped, data = tonicdf_filtered)
+
+
+#BMI continuous
+coxph(Surv(pfsmonths, pfs_osstat_ok) ~ BMI, data = tonicdf_filtered)
+
+#OS
+#BMI grouped
+coxph(Surv(osmonths, osstat) ~ BMI_grouped, data = tonicdf_filtered)
+
+#BMI continuous
+coxph(Surv(osmonths, osstat) ~ BMI, data = tonicdf_filtered)
+```
+
+assocation between TILs and survival in low vs high BMI
+```{r}
+#pfs
+## interaction model
+cox_model <- coxph(Surv(pfs_days, pfs_osstat_ok) ~ BMI * TILs_median, 
+      data = tonicdf_filtered)
+
+tbl_regression(cox_model, exponentiate = TRUE)
+
+## TILs grouped
+coxph(Surv(pfs_days, pfs_osstat_ok) ~ TILs_median, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "low BMI"))
+
+coxph(Surv(pfs_days, pfs_osstat_ok) ~ TILs_median, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "high BMI"))
+
+## TILs continuous
+coxph(Surv(pfs_days, pfs_osstat_ok) ~ sTIL, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "low BMI"))
+
+coxph(Surv(pfs_days, pfs_osstat_ok) ~ sTIL, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "high BMI"))
+#os
+## interaction model
+cox_model1 <- coxph(Surv(os_days, osstat) ~ BMI * TILs_median,
+                    data = tonicdf_filtered)
+tbl_regression(cox_model1, exponentiate = TRUE)
+
+## TILs grouped
+coxph(Surv(os_days, osstat) ~ TILs_median, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "low BMI"))
+
+coxph(Surv(os_days, osstat) ~ TILs_median, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "high BMI"))
+
+## TILs continuous
+coxph(Surv(os_days, osstat) ~ sTIL, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "low BMI"))
+
+coxph(Surv(os_days, osstat) ~ sTIL, 
+      data = (tonicdf_filtered) %>% filter (BMI_grouped == "high BMI"))
+```
+
 
 KM for OS per BMI group
 ```{r}
@@ -330,7 +442,22 @@ survfit2(Surv(osmonths, osstat) ~ BMI_grouped, data = tonicdf_filtered) %>%
   scale_x_continuous(breaks = seq(0, 30, 6))
 ```
 
+PFS
+```{r}
+survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_grouped, data = tonicdf_filtered) %>%
+  ggsurvfit () +
+  labs ( x = "months",
+         y = "progression-free survival probability",
+         title = "kaplan-meier for pfs per BMI group") +
+  add_risktable() +
+  add_pvalue() + 
+  theme_minimal () +
+  coord_cartesian(xlim = c(0, 30)) +        # show only 0–30 months
+  scale_x_continuous(breaks = seq(0, 30, 6))
+```
+
 KM for BMI_TIL groups
+OS
 ```{r}
 tonicdf_filtered <- tonicdf_filtered%>%
   mutate (BMI_TIL_groups = case_when (
@@ -345,6 +472,20 @@ survfit2(Surv(osmonths, osstat) ~ BMI_TIL_groups, data = tonicdf_filtered) %>%
   labs ( x = "months",
          y = "overall survival probability",
          title = "kaplan-meier for os per BMI-TIL group") +
+  add_risktable() +
+  add_pvalue() + 
+  theme_minimal () +
+  coord_cartesian(xlim = c(0, 30)) +        # show only 0–30 months
+  scale_x_continuous(breaks = seq(0, 30, 6))
+```
+
+PFS
+```{r}
+survfit2(Surv(pfsmonths, pfs_osstat_ok) ~ BMI_TIL_groups, data = tonicdf_filtered) %>%
+  ggsurvfit () +
+  labs ( x = "months",
+         y = "progression-free survival probability",
+         title = "kaplan-meier for pfs per BMI-TIL group") +
   add_risktable() +
   add_pvalue() + 
   theme_minimal () +
@@ -391,7 +532,7 @@ tonicdf_filtered <- tonicdf_filtered %>%
 
 ```{r}
 livermets <- tonicdf_filtered %>%
-  filter (location.liver ›== "1") %>%
+  filter (location.liver == "1") %>%
   group_by (arm) %>%
   summarize (count = n())
 print(livermets)
@@ -451,10 +592,9 @@ tonicdf_filtered_no <- tonicdf_filtered %>%
 
 
 #CHAPTER 2: TRIPLE-B
-```{r setup, include=FALSE}
-knitr::opts_knit$set(root.dir = "/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Data files/Final data files")
+```{r}
 setwd("/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Data files/Final data files")
-tripledf <- read.csv ("Triple-B_Clinical_data_20251023_final.csv")
+tripledf <- read.csv ("Triple-B_Clinical_data_20260122_final.csv")
 ```
 
 ##Mutate variables
@@ -547,6 +687,20 @@ tripledf <- tripledf %>%
     TRUE ~ as.character (NA)))
 ```
 
+tidy baseline biopsy location
+```{r}
+tripledf <- tripledf %>%
+  mutate (baseline_biopsy_site_tidy = case_when(
+    baseline_biopsy_site == "Mamma" ~ "Breast",
+    baseline_biopsy_site %in% c("Lung", "Pleura") ~ "Lung",
+    baseline_biopsy_site == "Liver" ~ "Liver",
+    baseline_biopsy_site == "Lymphnode" ~ "Lymphnode",
+    baseline_biopsy_site %in% c("Soft tissue", "Chest wall", "mediastinum",
+                                "Abdominal wall") ~ "Soft tissue",
+    baseline_biopsy_site == "Bone" ~ "Bone",
+    baseline_biopsy_site == "Skin" ~ "Skin", 
+    TRUE ~ as.character (NA)))
+```
 
 ## Baseline table for all patients
 ```{r}
@@ -631,6 +785,7 @@ tripledf_filtered %>%
   modify_header(label~"**Triple-B baseline PA**") %>%
   bold_labels()
 ```
+
 ```{r}
 #identify patients with overall survival over 500 days, because this is median in literature
 tripledf_filtered <- tripledf_filtered %>%
@@ -726,6 +881,7 @@ filter (arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
   bold_labels()
 ```
 
+## Response labels
 influence of BMI on response labels
 ```{r}
 tripledf_filtered_atezo %>% 
@@ -739,9 +895,37 @@ tripledf_filtered_atezo %>%
 modify_header(label ~ "**BOR**") %>%
 bold_labels()
 
-kruskal.test(response_labels ~ bmi.baseline, data = tripledf_filtered_atezo)
+chisq.test(tripledf_filtered_atezo$BMI_grouped, tripledf_filtered_atezo$response_labels)
 ```
 
+
+create odds ratio for BMI x response labels
+```{r}
+# create 4x4 table
+tab <- matrix(c(26, 20, 42, 32),
+              nrow = 2,
+              byrow = TRUE,
+              dimnames = list(
+                Exposure = c("low BMI", "high BMI"),
+                Disease = c("CR+PR", "PD")
+              ))
+              
+# odds ratio
+oddsratio(tab)
+```
+
+interaction between TILs and BMI on response labels
+```{r}
+tripledf_filtered <- tripledf_filtered %>%
+  mutate (response_labels_bin = case_when(
+    response_labels == "CR + PR" ~ 1,
+    response_labels == "PD" ~ 0,
+    TRUE ~ as.numeric (response_labels)))
+    
+model <- glm(response_labels_bin ~ TILs_median * bmi.baseline, data = tripledf_filtered,
+             family = binomial)
+tbl_regression (model)
+```
 
 ##TILs
 histograms of TILs per BMI group
@@ -837,6 +1021,20 @@ stat_compare_means(
   theme_minimal()
 ```
 
+compare TILs per biopsy site
+```{r}
+tripledf_filtered %>%
+  group_by (baseline_biopsy_site_tidy) %>%
+  filter (sTIL != "NA") %>%
+  summarize (number = n(),
+             median_TIL_score = median (sTIL),
+             minTIL_score = min(sTIL),
+             maxTIL_score = max(sTIL))
+
+#distribution of TILs per biopsy site does not differ sig
+kruskal.test(sTIL ~ baseline_biopsy_site_tidy, data = tripledf_filtered)
+```
+
 ##Survival analysis
 assocation between survival and BMI
 ```{r}
@@ -844,7 +1042,7 @@ assocation between survival and BMI
 tripledf_filtered %>% 
   filter(arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
              "Paclitaxel, Atezolizumab")) %>% #1st line atezo only
- wilcox.test (pfs_ok ~ BMI_grouped, correct = FALSE, data = .)
+coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ BMI_grouped, data = .)
 
 #analyse BMI continuous for pfs
 tripledf_filtered %>% 
@@ -856,7 +1054,7 @@ coxph (Surv(pfs_ok, pfsstat_osstat_ok) ~ bmi.baseline, data = .)
 tripledf_filtered %>% 
   filter(arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
              "Paclitaxel, Atezolizumab")) %>% #1st line atezo only
-wilcox.test (os ~ BMI_grouped, correct = FALSE, data = .)
+coxph(Surv(os, osstat) ~ BMI_grouped, data = .)
 
 #analyse BMI continuous
 tripledf_filtered %>% 
@@ -865,6 +1063,84 @@ tripledf_filtered %>%
 coxph (Surv(os, osstat) ~ bmi.baseline, data = .)
 ```
 
+
+association between TILs and survival in low and high BMI
+only assess this in 1st line atezo patients as TILs are predictor for IO response,
+but not for chemo response
+```{r}
+#pfs 
+## interaction coefficient for all 1st line atezo arms together
+cox_model2 <- coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ TILs_median * bmi.baseline,
+      data = (tripledf_filtered) %>% 
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab"))
+tbl_regression(cox_model2)
+
+## interaction coefficient per atezo arm
+cox_model4 <- coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ TILs_median * bmi.baseline,
+      data = (tripledf_filtered) %>% 
+      filter (arm == "Paclitaxel, Atezolizumab"))
+tbl_regression(cox_model4)
+
+## TIls grouped
+coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ TILs_median, 
+      data = (tripledf_filtered) %>% 
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "low BMI"))
+
+coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ TILs_median, 
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "high BMI"))
+
+## TILs continuous
+coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ sTIL, 
+      data = (tripledf_filtered) %>% 
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "low BMI"))
+
+coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ sTIL, 
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "high BMI"))
+
+#os
+## interaction model for all 1st line atezo arms together
+cox_model3 <- coxph(Surv(os, osstat) ~ TILs_median * bmi.baseline,
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab"))
+tbl_regression(cox_model3)
+
+## interaction model for all 1st line atezo arms together
+cox_model5 <- coxph(Surv(os, osstat) ~ TILs_median * bmi.baseline,
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Paclitaxel, Atezolizumab"))
+tbl_regression(cox_model5)
+             
+             
+## TILs grouped
+coxph(Surv(os, osstat) ~ TILs_median, 
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "low BMI"))
+
+coxph(Surv(os, osstat) ~ TILs_median, 
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "high BMI"))
+
+## TILs continuous
+coxph(Surv(os, osstat) ~ sTIL, 
+      data = (tripledf_filtered) %>% 
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "low BMI"))
+
+coxph(Surv(os, osstat) ~ sTIL, 
+      data = (tripledf_filtered) %>%  
+      filter (arm == "Carboplatin, Cyclophosphamide, Atezolizumab"| arm == 
+             "Paclitaxel, Atezolizumab" & BMI_grouped == "high BMI"))
+```
 
 Kaplan-Meijer for BMI groups
 mutate os and pfs from days to months
@@ -963,14 +1239,15 @@ tripledf_filtered_atezo <- tripledf_filtered %>%
   filter(arm %in% c("Carboplatin, Cyclophosphamide, Atezolizumab",
              "Paclitaxel, Atezolizumab")) #1st line atezo only
 
-coxph(Surv(os, osstat) ~ age.rand + Answer.CPS + bl.ldh.dic + who +
+coxph(Surv(os, osstat) ~ arm + age.rand + Answer.CPS + bmi.baseline * TILs_median 
+              + bl.ldh.dic + who +
              location.liver, data = tripledf_filtered_atezo) %>%
   tbl_regression(exp=TRUE)
 ```
 Progression-free survival: Age, CPS, TILs, LDH, WHO are significant in univariate analysis, 
 so they are included in multivariable analysis
 ```{r}
-coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ age.rand + Answer.CPS + TILs_median +
+coxph(Surv(pfs_ok, pfsstat_osstat_ok) ~ arm + age.rand + Answer.CPS + bmi.baseline * TILs_median +
         bl.ldh.dic + who, data = tripledf_filtered_atezo) %>%
   tbl_regression(exp=TRUE)
 ```
@@ -998,9 +1275,7 @@ with(wilcox.test(PD_1stline, PD_2ndline, paired = TRUE))
 ```
 
 #CHAPTER 3: BELLINI
-```{r setup, include=FALSE}
-knitr::opts_knit$set(root.dir = "/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
-setwd("/Volumes/Group Kok/Ariane /Ariane_Triple-B/Data/Clinical/Projects/BMI project/Final data files")
+```{r}
 beldf <- read.csv ("BELLINI_metadata_20251204_AS.csv")
 View(beldf)
 ```
@@ -1040,6 +1315,15 @@ beldf <- beldf %>%
           TRUE ~ as.character(NA)))
 ```
 
+TILs<50 or >50 
+```{r}
+beldf <- beldf %>%
+  mutate (TILs50 = case_when(
+    TIL_mean < 50 ~ "<50%",
+    TIL_mean >= 50 ~ ">=50%",
+    TRUE ~ as.character (NA)))
+```
+
 regroup menopausal status to clean data
 ```{r}
 beldf <- beldf %>%
@@ -1075,9 +1359,6 @@ beldf <- beldf %>%
 ```{r}
 beldf <- beldf %>%
   mutate (TIL_mean = as.numeric(TIL_mean))
-
-beldf_filtered <- beldf %>% 
-  filter (BMI_grouped != "underweight") 
 ```
 
 regroup pCR to clean data
@@ -1085,17 +1366,28 @@ everything that is not pCR = non-pCR
 in paper by Nederlof there was distinguished between clinical response yes/no for cohort 1B and 2B. 
 pCR was not reported for cohort 1B and 2B
 ```{r}
-beldf_filtered <- beldf_filtered %>%
+beldf <- beldf%>%
   mutate (pCR_response = case_when(
     pCR_response == "pCR" ~ "pCR",
     pCR_response == "near-pCR" | pCR_response == "non-pCR" 
     | pCR_response == "nearpCR" | pCR_response == "NR" ~ "non-pCR",
     TRUE ~ as.character(NA)))
-glimpse(beldf_filtered$pCR_response)
+glimpse(beldf$pCR_response)
+```
+for cohort 3B distinguish between pCR, MPR and NR
+```{r}
+beldf <- beldf %>%
+  mutate (pa_response = case_when(
+  pCR_response == "pCR" ~ "pCR",
+  !pCR_response %in% "pCR" & MPR == "MPR" ~ "MPR",
+  !pCR_response %in% "pCR" & MPR == "NR" ~ "NR"))
 ```
 
 ##Baseline table
 ```{r}
+beldf_filtered <- beldf %>% 
+  filter (BMI_grouped != "underweight") 
+
 beldf_filtered %>%
   tbl_summary(
     by = BMI_grouped,
@@ -1103,13 +1395,14 @@ beldf_filtered %>%
                  meno ~ "categorical", tumor_stage ~ "categorical", 
                  stage ~ "categorical", Lymphnode_status_baseline ~ "categorical", 
                  Grade_of_tumor ~ "categorical",
-                 TILs30 ~ "categorical", TIL_mean ~ "continuous",
+                 TILs30 ~ "categorical", TILs50 ~ "categorical",
+                 TIL_mean ~ "continuous",
                  Neoadjuvant_Chemotherapy ~ "categorical", 
                  pCR_response ~ "categorical"),
     statistic = list (all_continuous() ~ "{median} ({min}, {max})",
                      all_categorical() ~ "{n} ({p}%)"),
     include = c(age_grouped, Age_at_diagnosis, meno, tumor_stage, stage, 
-                Lymphnode_status_baseline, Grade_of_tumor, TILs30, TIL_mean, 
+                Lymphnode_status_baseline, Grade_of_tumor, TILs30, TILs50, TIL_mean, 
                 Neoadjuvant_Chemotherapy, pCR_response)) %>%
   modify_header(label~"**BELLINI baseline**") %>%
   add_p () %>%
@@ -1134,8 +1427,7 @@ ggplot (data = beldf_filtered, mapping = aes(x = BMI_grouped, y = TIL_mean)) +
     y = "TIL-scores",
     title = "violin plot of TIL-scores per BMI group"
     )
-```
-```{r}
+
 #TILs continuous x BMI grouped
 wilcox.test(TIL_mean ~ BMI_grouped, correct = FALSE, data = beldf_filtered)
 
@@ -1146,8 +1438,7 @@ cor.test(beldf_filtered$TIL_mean, beldf_filtered$BMI_at_diagnosis, method = "spe
 chisq.test(x = beldf_filtered$TILs30, y = beldf_filtered$BMI_grouped)
 ```
 
-  stat_bin(aes(y = ..count..), geom = "line", binwidth = 5, color = "red", size = 1) +
-
+##Clinical benefit
 ```{r}
 #look at the association between CLinical Benefit rates and BMI for cohort 1B and 2B 
 beldf_filtered <- beldf_filtered %>%
@@ -1188,11 +1479,18 @@ beldf_filtered %>%
   modify_header (label ~ "**Clinical Benefit**")
 ```
 
+does BMI interact with TILs and influence CB?
+```{r}
+lm_model <- glm (CB_bin ~ TILs30 * BMI_at_diagnosis, data = beldf_filtered %>% 
+            filter (Cohort != "3B"))
+tbl_regression(lm_model, exponentiate = TRUE)
+```
+
 ##pCR
 ```{r}
 #BMI grouped x pCR
 beldf_filtered %>%
-  filter (Cohort != "3B") %>%
+  filter (Cohort == "3B") %>%
   tbl_summary (
     by = pCR_response,
     include = BMI_grouped,
@@ -1213,12 +1511,64 @@ tab <- matrix(c(7,10,3,11), #count of cases per exposure and disease, top left t
               
 # odds ratio
 oddsratio(tab)
+
+#BMI grouped x MPR in cohort 3B
+beldf_filtered %>%
+  filter (Cohort == "3B") %>%
+  tbl_summary(
+    by = BMI_grouped,
+    include = pa_response,
+    type = list (pa_response ~ "categorical"),
+    statistic = (all_categorical() ~ "{n} ({p}%)")
+  ) %>%
+  add_p()
+```
+
+BMI related to radiological % tumor change in Cohort 3B
+```{r}
+#waterfall plot per response group
+beldf_filtered_3B <- beldf_filtered %>%
+  filter (Cohort == "3B") %>%
+  arrange (desc(Tumor_change)) %>%
+  mutate (BELLINI_ID = factor (BELLINI_ID, levels = BELLINI_ID))
+
+ggplot(beldf_filtered_3B, aes (x = BELLINI_ID, y = Tumor_change, 
+                            fill = pa_response)) +
+  geom_col(width = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs (x = "Patient", y = "% change in tumor volume") +
+  scale_fill_manual (name = "pathological response",
+                      values = c("pCR" = "blue",
+                                 "MPR" = "yellow",
+                                 "NR" = "grey")) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+#waterfall plot per BMI group
+beldf_filtered_3B <- beldf_filtered %>%
+  filter (Cohort == "3B") %>%
+  arrange (desc(Tumor_change)) %>%
+  mutate (BELLINI_ID = factor (BELLINI_ID, levels = BELLINI_ID))
+
+ggplot(beldf_filtered_3B, aes (x = BELLINI_ID, y = Tumor_change, 
+                            fill = BMI_grouped)) +
+  geom_col(width = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs (x = "Patient", y = "% change in tumor volume") +
+  scale_fill_manual (name = "BMI group",
+                      values = c("high BMI" = "magenta",
+                                 "low BMI" = "darkgreen"
+                                 )) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+#correlation
+wilcox.test(Tumor_change ~ BMI_grouped, correct = FALSE, data = beldf_filtered_3B)
 ```
 
 ##Logistic regression for pCR
 Univariable log regression for pCR 
 ```{r}
-beldf_filtered %>%
+beldf_filtered_3B %>%
   tbl_summary(
     by = pCR_response,
     type = list (age_grouped ~ "categorical", Age_at_diagnosis ~ "continuous",
@@ -1226,14 +1576,13 @@ beldf_filtered %>%
                  meno ~ "categorical", tumor_stage ~ "categorical", 
                  stage ~ "categorical", Lymphnode_status_baseline ~ "categorical", 
                  Grade_of_tumor ~ "categorical",
-                 TILs30 ~ "categorical", TIL_mean ~ "continuous",
-                 Neoadjuvant_Chemotherapy ~ "categorical"),
+                 TILs30 ~ "categorical", TILs50 ~ "categorical", 
+                 TIL_mean ~ "continuous"),
     statistic = list (all_continuous() ~ "{median} ({min}, {max})",
                      all_categorical() ~ "{n} ({p}%)"),
     include = c(age_grouped, Age_at_diagnosis, BMI_at_diagnosis, BMI_grouped,
                 meno, tumor_stage, stage, Lymphnode_status_baseline, 
-                Grade_of_tumor, TILs30, TIL_mean, 
-                Neoadjuvant_Chemotherapy)) %>%
+                Grade_of_tumor, TILs30, TILs50, TIL_mean)) %>%
   modify_header(label~"**Univariate logistic regression for pCR**") %>%
   add_p () %>%
   bold_labels()
@@ -1251,13 +1600,14 @@ glimpse(beldf_filtered$pCR_bin)
 beldf_filtered <- beldf_filtered %>%
   mutate (pCR_bin = as.numeric (pCR_bin))
 
+model <- glm(pCR_bin ~ BMI_at_diagnosis * TIL_mean, data = 
+              beldf_filtered %>% filter (Cohort == "3B"), family = binomial)
+tbl_regression(model, exponentiate = TRUE)
+
 model <- glm(pCR_bin ~ BMI_at_diagnosis + TIL_mean + meno + stage + 
              Grade_of_tumor + age_grouped + Neoadjuvant_Chemotherapy,
              data = beldf_filtered, family = binomial)
-summary(model)
-
-exp(coef(model))                     # Odds ratios
-exp(confint(model))                  # CI
+tbl_regression(model, exponentiate = TRUE)
 ```
 
 Do univariate and multivariable log regression again for cohort 1B & 2B vs 3B 
@@ -1297,3 +1647,93 @@ summary(model)
 exp(coef(model))                     # Odds ratios
 exp(confint(model))                  # CI
 ```
+
+#CHAPTER 4: TONIC/TRIPLE-B COMBINED
+I want to make a new df with bmi and TILs from TONIC and Triple-B combined
+first make sure the variables are numeric
+```{r}
+tonicdf_filtered <- tonicdf_filtered %>%
+  mutate (patnr = as.character (patnr),
+          BMI = as.numeric (BMI),
+          sTIL = as.numeric (sTIL))
+
+tripledf_filtered <- tripledf_filtered %>%
+  mutate (patnr = as.character (patnr),
+          bmi.baseline = as.numeric (bmi.baseline),
+          sTIL = as.numeric (sTIL))
+```
+
+make new df
+```{r}
+combinedf <- bind_rows(
+  tonicdf_filtered %>% select (patnr, bmi = BMI, sTIL),
+  tripledf_filtered %>% select (patnr, bmi = bmi.baseline, sTIL))
+View(combinedf)
+```
+
+Now analyse relation between TILs and BMI
+```{r}
+cor.test(combinedf$bmi, combinedf$sTIL, method = "spearman")
+
+ggplot(data = combinedf %>% filter (patnr != "283", sTIL != "NA"), mapping = aes (x = bmi, y = sTIL)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth (se = FALSE) +
+  labs(
+    x = "BMI at baseline",
+    y = "TIL-score",
+    title = "TONIC & Triple-B combined"
+  ) 
+```
+
+Make bmi groups to analyse odds ratio and medians per group
+```{r}
+combinedf <- combinedf %>%
+  mutate (BMI_grouped = case_when(
+                        bmi >= 18.5 & bmi < 25 ~ "low BMI",
+                        bmi >= 25 ~ "high BMI",
+                        TRUE ~ as.character(NA)))
+glimpse(combinedf$BMI_grouped)
+
+combinedf <- combinedf %>%
+  mutate (TILs_median = case_when(
+    sTIL < 5 ~ "<5%",
+    sTIL >= 5 ~ ">=5%",
+    TRUE ~ as.character(NA)))
+glimpse(combinedf$TILs_median)
+```
+
+```{r}
+combinedf %>%
+  group_by (BMI_grouped) %>%
+  filter (sTIL != "NA") %>%
+  summarize (medianTIL = median (sTIL),
+             minTIL = min (sTIL),
+             maxTIL = max (sTIL),
+             count = n ())
+     
+wilcox.test (sTIL ~ BMI_grouped, data = combinedf, correct = FALSE)
+
+ggplot (data = combinedf, mapping = aes (x = sTIL)) +
+  geom_histogram (binwidth = 5, color = "white", 
+                  fill = "lightblue") +
+  stat_bin(aes(y = ..count..), geom = "line", binwidth = 5, color = "red", size = 1) +
+  facet_wrap(~BMI_grouped) +
+  labs(
+    x = "TIL-score",
+    y = "n",
+    title = "distribution of TILs per BMI group"
+  )
+```
+
+```{r}
+#analyse TILs grouped with BMI grouped
+combinedf %>%
+  filter(!is.na(TILs_median)) %>%
+  tbl_summary (
+    by = BMI_grouped,
+    include = TILs_median,
+    type = list (TILs_median ~ "categorical"),
+    statistic = (all_categorical() ~ "{n} ({p}%)")
+  ) %>%
+  add_p()
+```  
